@@ -1,15 +1,18 @@
-function eventListener(method, elements, events, fn, options = {}) {
+import { Mode } from "./types";
 
+function eventListener(method: string, elements: HTMLCollection | NodeList | Element, events: string[], fn: Function, options: Object = {}) {
+
+    let elements_: Iterable<Node>
     // Normalize array
     if (elements instanceof HTMLCollection || elements instanceof NodeList) {
-        elements = Array.from(elements);
+        elements_ = Array.from(<HTMLCollection | NodeList>elements);
     } else if (!Array.isArray(elements)) {
-        elements = [elements];
+        elements_ = [elements];
     }
 
     if (!Array.isArray(events)) events = [events];
 
-    for (const element of elements) {
+    for (const element of elements_) {
         for (const event of events) {
             element[method](event, fn, {capture: false, ...options});
         }
@@ -38,7 +41,7 @@ export const on = eventListener.bind(null, 'addEventListener');
  */
 export const off = eventListener.bind(null, 'removeEventListener');
 
-const unitify = (val, unit = 'px') => typeof val === 'number' ? val + unit : '' + val;
+const unitify = (val: string | number, unit = 'px') => typeof val === 'number' ? val + unit : '' + val;
 
 /**
  * Add css to a DOM-Element or returns the current
@@ -49,28 +52,35 @@ const unitify = (val, unit = 'px') => typeof val === 'number' ? val + unit : '' 
  * @param val The value for a single attribute.
  * @returns {*}
  */
-export function css(el, attr, val) {
+export function css(el: HTMLElement, attr: {[key: string]: string | number} | string | null, val: number | string = null) {
+
+    // what the heck is this function 
+
     const style = el && el.style;
-    if (!style) return;
+    if (!style) return; //undefined
 
     if (typeof attr === 'object') {
 
         for (const prop in attr) {
             style[prop] = unitify(attr[prop]);
         }
-
+        // undefined
     } else if (val == null) {
 
+        let cssStyleDeclaration: CSSStyleDeclaration
         const dw = document.defaultView;
         if (dw && dw.getComputedStyle) {
-            val = dw.getComputedStyle(el, null);
-        } else if (el.currentStyle) {
-            val = el.currentStyle;
-        }
+            cssStyleDeclaration = dw.getComputedStyle(el, null);
+        } 
+        // IE6 - deprecated as outdated and unsecure - no need to support
+        // else if (el.currentStyle) {
+        //     val = el.currentStyle;
+        // }
 
-        return attr == null ? val : val[attr];
+        return attr == null ? cssStyleDeclaration : cssStyleDeclaration[attr]; // CSSStyleDeclaration | string | number
     } else {
         style[attr] = unitify(val);
+        // undefined
     }
 }
 
@@ -81,7 +91,7 @@ export function css(el, attr, val) {
  * @param mode Options are center, cover or touch.
  * @returns {boolean} If both elements intersects each other.
  */
-export function intersects(a, b, mode = 'touch') {
+export function intersects(a: ClientRect | DOMRect, b: ClientRect | DOMRect, mode: Mode = 'touch') {
 
     if (mode === 'center') {
         const bxc = b.left + b.width / 2;
@@ -109,10 +119,10 @@ export function intersects(a, b, mode = 'touch') {
  * @param selector The selector or an Array of selectors.
  * @returns {Array} Array of DOM-Nodes.
  */
-export function selectAll(selector) {
+export function selectAll(selector: string | Array<string>) {
     if (!Array.isArray(selector)) selector = [selector];
 
-    const nodes = [];
+    const nodes: Array<Element> = [];
     for (const sel of selector) {
         nodes.push(...document.querySelectorAll(sel));
     }
@@ -125,11 +135,12 @@ export function selectAll(selector) {
  * @param evt The event object.
  * @return [String] event path.
  */
-export function eventPath(evt) {
-    let path = evt.path || (evt.composedPath && evt.composedPath());
+export function eventPath(evt: Event) {
+    let path = /** evt.path  || */ (evt.composedPath && evt.composedPath()); // again ignore M$
     if (path) return path;
 
-    let el = evt.target.parentElement;
+    // polyfill
+    let el = (<Element>evt.target).parentElement
     path = [evt.target, el];
     while (el = el.parentElement) path.push(el);
 
@@ -138,27 +149,28 @@ export function eventPath(evt) {
 }
 
 /**
- * Removes an element from an Array.
+ * Removes first instance of element from an Array by reference.
  */
-export function removeElement(arr, el) {
+export function removeElement(arr: Array<any>, el: Element) {
     const index = arr.indexOf(el);
     if (~index) arr.splice(index, 1);
 }
 
-export function simplifyEvent(evt) {
-    const tap = (evt.touches && evt.touches[0] || evt);
+
+export function simplifyEvent(evt: MouseEvent | TouchEvent) {
+    const tap = ((<TouchEvent>evt).touches && (<TouchEvent>evt).touches[0]) || <MouseEvent>evt;
     return {
         tap,
-        x: tap.clientX,
+        x: tap.clientX,   
         y: tap.clientY,
-        target: tap.target
+        target: <Element>tap.target
     };
 }
 
 /**
  * Checks if value is likely a DOM element.
  */
-export function isElement(value) {
+export function isElement(value: any) {
     return (
         typeof HTMLElement === "object"
             ? value instanceof HTMLElement
