@@ -181,10 +181,10 @@ Event properties of start, stop and move event.
  * eventName`:String` _- The event name._
  * areaElement`:HTMLElement` _- The selection element._
  * originalEvent`:Event` _- The original mouse-event._
- * selectedElements`:Array[HTMLElements]` _- Array with currently selected HTMLElements._
+ * selectedElements`:Array<HTMLElement>` _- Array with currently selected HTMLElement._
  * changedElements`:Object`
- * added`:Array[HTMLElements]` _- Elements which are added to `selectedElements` since the last interaction (mousemove)._
- * removed`:Array[HTMLElements]`  _- Elements which are removed from `selectedElements` since last interaction (mousemove)._
+ * added`:Array<HTMLElements>` _- Elements which are added to `selectedElements` since the last interaction (mousemove)._
+ * removed`:Array<HTMLElements>`  _- Elements which are removed from `selectedElements` since last interaction (mousemove)._
 
 
 ### Filter event
