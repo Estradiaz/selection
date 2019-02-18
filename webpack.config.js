@@ -2,7 +2,7 @@ const webpack = require('webpack');
 
 module.exports = {
 
-    entry: './src/selection.js',
+    entry: './src/selection.ts',
 
     output: {
         path: __dirname + '/dist',
@@ -15,18 +15,29 @@ module.exports = {
 
     devServer: {
         contentBase: __dirname + '/',
-        host: '0.0.0.0',
+        host: 'localhost',
         port: 3001
     },
 
+    resolve: {
+        extensions: ['.ts', '.js', '.json']
+    },
     module: {
         rules: [
             {
-                test: /\.js$/,
+                test: /\.tsx?$/,
                 use: [
                     'babel-loader',
-                    'eslint-loader'
-                ]
+                    'ts-loader'
+                ],
+                
+            },
+            {
+                test: /\.js$/,
+                use: [
+                    'source-map-loader'
+                ],
+                enforce: "pre"
             }
         ]
     },

@@ -1,8 +1,8 @@
-import { Mode } from "./types";
+import { Mode, CSSWriteableStyleDeclarationProperties, Subtype } from "./types";
 
-function eventListener(method: string, elements: HTMLCollection | NodeList | Element, events: string[], fn: Function, options: Object = {}) {
+function eventListener(method: "addEventListener" | "removeEventListener", elements: HTMLCollection | NodeList | Element, events: (keyof GlobalEventHandlersEventMap)[] | keyof GlobalEventHandlersEventMap, fn: EventListener, options: Object = {}) {
 
-    let elements_: Iterable<Node>
+    let elements_: Iterable<Subtype<Node, Function>>
     // Normalize array
     if (elements instanceof HTMLCollection || elements instanceof NodeList) {
         elements_ = Array.from(<HTMLCollection | NodeList>elements);
@@ -52,7 +52,7 @@ const unitify = (val: string | number, unit = 'px') => typeof val === 'number' ?
  * @param val The value for a single attribute.
  * @returns {*}
  */
-export function css(el: HTMLElement, attr: {[key: string]: string | number} | string | null, val: number | string = null) {
+export function css(el: HTMLElement, attr: {[key in CSSWriteableStyleDeclarationProperties]?: string | number } | CSSWriteableStyleDeclarationProperties | null, val: number | string = null) {
 
     // what the heck is this function 
 
@@ -61,8 +61,8 @@ export function css(el: HTMLElement, attr: {[key: string]: string | number} | st
 
     if (typeof attr === 'object') {
 
-        for (const prop in attr) {
-            style[prop] = unitify(attr[prop]);
+        for (let prop in attr) {
+            style[<CSSWriteableStyleDeclarationProperties>prop] = unitify(attr[<CSSWriteableStyleDeclarationProperties>prop]);
         }
         // undefined
     } else if (val == null) {

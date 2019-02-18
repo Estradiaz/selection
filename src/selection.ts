@@ -4,30 +4,54 @@
  * @author  Simon Reinisch - TypeScripted: Samuel Ueberle
  * @license MIT
  */
-import {Options, Utils} from './types'
+import {Options, Utils, ChangedElements} from './types'
 import * as utils from './utils'
+
+
 
 
 export class Selection {
 
-    constructor(options: Options = {}){
-        Object.assign(this.options, options)
-        this.init()
-    }
+    
 
     private options: Options = {
         class: 'selection-area',
-        mode: 'cover',
-        startThreshold: 0,
-        singleClick: false,
-        disableTouch: true,
-        validateStart: () => null,
+        startThreshold: 10,
+        disableTouch: false,
+        mode: 'touch',
+        singleClick: true,
         containers: [],
         selectables: [],
-        scrollSpeedDivider: 10,
         startareas: ['html'],
         boundaries: ['html'],
-        selectionAreaContainer: 'body'
+        selectionAreaContainer: 'body',
+        scrollSpeedDivider: 10,
+        validateStart(evt) {
+            evt; // MouseEvent or TouchEvent
+            console.log(evt)
+            return true;
+        },
+        onStart(evt) {
+            evt.selection;
+            evt.eventName;
+            evt.areaElement;
+            evt.originalEvent;
+            evt.selectedElements;
+            evt.changedElements;
+        },
+        onSelect(evt) {
+        evt.target; // Clicked element
+        },
+        onMove(evt) {
+        },
+        onStop(evt) {
+        },
+        selectionFilter(evt) {
+            evt.selection; // This selection instance
+            evt.eventName; // The event name
+            evt.element;   // The element which is in the current selection
+            return true
+        }
     }
     private selectedStore: any[]
     = []
@@ -50,15 +74,29 @@ export class Selection {
     private targetContainer: Element
     private selectables: Element[]
     private singleClick: boolean = false
-    private changedElements: {
-        added: Element[],
-        removed: Element[]
+    private changedElements: ChangedElements
+
+    constructor(options: Options){
+        if(options)
+        Object.assign(this.options, options)
+        console.log(options, this.options)
+        this.init()
     }
+
 
     private init() {
 
+
+        this.onTapMove = this.onTapMove.bind(this)
+        this.onTapStart = this.onTapStart.bind(this)
+        this.onTapStop = this.onTapStop.bind(this)
+        this.onSingleTap = this.onSingleTap.bind(this)
+        this.manualScroll = this.manualScroll.bind(this)
+        this.delayedTapMove = this.delayedTapMove.bind(this)
+        
+        
         // Append area to container
-        if (this.utils.isElement(this.options.selectionAreaContainer)) {
+        if (utils.isElement(this.options.selectionAreaContainer)) {
             this.selectionAreaContainer = <Element>this.options.selectionAreaContainer;
         } else {
             this.selectionAreaContainer = document.querySelector(<string>this.options.selectionAreaContainer);
@@ -68,7 +106,7 @@ export class Selection {
         this.selectionAreaContainer.appendChild(this.clippingElement);
 
         // Apply basic styles to the area element
-        this.utils.css(
+        utils.css(
             this.areaElement, 
             {
                 top: 0,
@@ -77,39 +115,40 @@ export class Selection {
             }
         );
 
-        this.utils.css(
+        utils.css(
             this.clippingElement,
             {
                 overflow: 'hidden',
                 position: 'fixed',
                 transform: 'translate3d(0, 0, 0)', // https://stackoverflow.com/a/38268846
-                'pointer-events': 'none'
+                pointerEvents: 'none'
             }
         );
 
         this.enable();
     }
 
-    private bindStartEvents(type: string){
-        this.utils[type]
+    private bindStartEvents(type: keyof Utils){
+        utils[type]
         (document, 'mousedown', this.onTapStart)
         if(!this.options.disableTouch){
-            this.utils[type]
+            utils[type]
             (document, 'touchstart', this.onTapStart, {passive: false})
         }
     }
-    private onTapStart(e: TouchEvent){
-        const {x, y, target} = this.utils.simplifyEvent(e)
+    private onTapStart(e: TouchEvent): undefined{
+        console.log(this)
+        const {x, y, target} = utils.simplifyEvent(e)
         const targetBondaryClientRect = target.getBoundingClientRect()
 
-        if(this.options.validateStart(e)){
+        if(!this.options.validateStart(e)){
             return undefined;
         }
 
-        const startAreas = this.utils.selectAll(this.options.startareas)
-        this.boundaries = this.utils.selectAll(this.options.boundaries)
+        const startAreas = utils.selectAll(this.options.startareas)
+        this.boundaries = utils.selectAll(this.options.boundaries)
 
-        const evtpath = this.utils.eventPath(e)
+        const evtpath = utils.eventPath(e)
         if(
             !startAreas.find(el => evtpath.includes(el)) ||
             !this.boundaries.find(el => evtpath.includes(el))
@@ -117,7 +156,7 @@ export class Selection {
 
         this.areaStartX = x;
         this.areaStartY = y;
-
+            console.log(x, y, this.areaStartX, this.areaStartY)
         this.areaEndX = 0;
         this.areaEndY = 0;
 
@@ -126,7 +165,7 @@ export class Selection {
         this.resolveSelectables()
 
         this.targetContainer = this.boundaries.find(
-            el => this.utils.intersects(
+            el => utils.intersects(
                 el.getBoundingClientRect(),
                 targetBondaryClientRect
             )
@@ -155,26 +194,28 @@ export class Selection {
         ) {
             this.scrollAvailable = true
 
-            this.utils.on(window, 'wheel', this.manualScroll)
+            
+            utils.on(window, 'wheel', this.manualScroll)
             this.selectables = this.selectables.filter(s => this.targetContainer.contains(s))
 
             let {top, left, width, height} = this.targetBoundary
-            this.utils.css(
+            utils.css(
                 this.clippingElement, {
-                    top, left, width, height
+                    "top": top, 
+                    left, width, height
                 }
             )
 
-            this.utils.css(
+            utils.css(
                 this.areaElement, {
-                    'margin-top': -top,
-                    'margin-left': -left
+                    marginTop: -top,
+                    marginLeft: -left
                 }
             )
         } else {
             this.scrollAvailable = false
 
-            this.utils.css(
+            utils.css(
                 this.clippingElement,
                 {
                     top: 0,
@@ -183,27 +224,29 @@ export class Selection {
                     height: '100%'
                 }
             )
-            this.utils.css(
+            utils.css(
                 this.areaElement, {
-                    'margin-top': 0,
-                    'margin-left': 0
+                    marginTop: 0,
+                    marginLeft: 0
                 }
             )
         }
 
         this.areaElement.classList.add(this.options.class);
 
-        this.utils.on(document, 'mousemove', this.delayedTapMove)
-        this.utils.on(document, 'touchmove', this.delayedTapMove, {
+        
+        utils.on(document, 'mousemove', this.delayedTapMove)
+        utils.on(document, 'touchmove', this.delayedTapMove, {
             passive: false
         })
 
-        this.utils.on(document, ['mouseup', 'touchcancel', 'touchend'], this.onTapStop)
+        
+        utils.on(document, ['mouseup', 'touchcancel', 'touchend'], this.onTapStop)
 
         e.preventDefault()
     }
-    private onSingleTap(e: TouchEvent){
-        let {target} = this.utils.simplifyEvent(e)
+    private onSingleTap(e: TouchEvent): void{
+        let {target} = utils.simplifyEvent(e)
 
         while(this.selectables.includes(target)){
             if(target.parentElement){
@@ -217,13 +260,13 @@ export class Selection {
         this.dispatchEvent('onSelect', e, {target})
     }
     private delayedTapMove(e: TouchEvent){
-        let {x , y} = this.utils.simplifyEvent(e)
+        let {x , y} = utils.simplifyEvent(e)
 
         if(Math.abs(x + y) - (this.areaStartX + this.areaStartY) >= this.options.startThreshold){
 
-            this.utils.off(document, ['mousemove', 'touchmove'], this.delayedTapMove)
-            this.utils.on(document, ['mousemove', 'touchmove'], this.onTapMove)
-            this.utils.css(
+            utils.off(document, ['mousemove', 'touchmove'], this.delayedTapMove);
+            utils.on(document, ['mousemove', 'touchmove'], this.onTapMove);
+            utils.css(
                 this.areaElement,
                 'display',
                 'block'
@@ -234,14 +277,14 @@ export class Selection {
         }
     }
     private onTapMove(e: TouchEvent){
-        let {x , y} = this.utils.simplifyEvent(e)
+        let {x , y} = utils.simplifyEvent(e)
         this.areaEndX = x;
         this.areaEndY = y;
         
         if(this.scrollAvailable && (this.scrollSpeed.y !== null || this.scrollSpeed.x !== null)){
             const scrollContainer = this.targetContainer
             
-            let scroll = (t: number) => {
+            let scroll = (t: number):void => {
         
                 if(this.scrollSpeed.y === null && this.scrollSpeed.x === null){
         
@@ -250,7 +293,7 @@ export class Selection {
         
                 const {scrollTop, scrollLeft} = scrollContainer
                 if(this.scrollSpeed.y !== null){
-                    scrollContainer.scrollLeft += Math.ceil(this.scrollSpeed.y / this.options.scrollSpeedDivider)
+                    scrollContainer.scrollTop += Math.ceil(this.scrollSpeed.y / this.options.scrollSpeedDivider)
                     this.areaStartY -= scrollContainer.scrollTop - scrollTop
                 }
 
@@ -263,9 +306,9 @@ export class Selection {
                 this.updatedTouchingElements()
                 this.dispatchEvent('onMove', e)
 
-                requestAnimationFrame(scroll)
+                requestAnimationFrame(scroll.bind(this))
             }
-            requestAnimationFrame(scroll)
+            requestAnimationFrame(scroll.bind(this))
         } else {
 
             this.redrawArea()
@@ -307,7 +350,7 @@ export class Selection {
             x = boundaryRect.left
         } else
         if(x > boundaryRect.left + boundaryRect.width){
-            this.scrollSpeed.x = scrollWidth - scrollLeft - clientWidth ? -Math.abs(boundaryRect.left + boundaryRect.width - x) : null
+            this.scrollSpeed.x = scrollWidth - scrollLeft - clientWidth ? Math.abs(boundaryRect.left + boundaryRect.width - x) : null
             x = boundaryRect.left + boundaryRect.width
         } else
         if(true){
@@ -319,20 +362,20 @@ export class Selection {
             y = boundaryRect.top
         } else
         if(y > boundaryRect.top + boundaryRect.height){
-            this.scrollSpeed.y = scrollHeight - scrollTop - clientHeight ? -Math.abs(boundaryRect.top + boundaryRect.height - y) : null
+            this.scrollSpeed.y = scrollHeight - scrollTop - clientHeight ? Math.abs(boundaryRect.top + boundaryRect.height - y) : null
             y = boundaryRect.top + boundaryRect.height
         } else
         if(true){
             this.scrollSpeed.y = null
         }
             
-        this.utils.css(
+        utils.css(
             this.areaElement,
             {
-                top: Math.min(this.areaStartX, x),
-                left: Math.min(this.areaStartY, y),
-                width: Math.max(this.areaStartX, x),
-                height: Math.max(this.areaStartY, y)
+                left: Math.min(this.areaStartX, x),
+                top: Math.min(this.areaStartY, y),
+                width: Math.max(this.areaStartX, x) - Math.min(this.areaStartX, x),
+                height: Math.max(this.areaStartY, y) - Math.min(this.areaStartY, y)
             }
         )
     }
@@ -341,17 +384,18 @@ export class Selection {
     }
     private onTapStop(e: TouchEvent, noEvent: boolean){
 
-        this.utils.off(
+        console.log('tabstop', utils)
+        utils.off(
             document,
             ['mousemove', 'touchmove'],
             this.delayedTapMove
         )
-        this.utils.off(
+        utils.off(
             document,
             ['mousemove', 'touchmove'],
             this.onTapMove
         )
-        this.utils.off(
+        utils.off(
             document,
             ['mouseup', 'touchcancel', 'touchend'],
             this.onTapStop
@@ -366,11 +410,11 @@ export class Selection {
         }
         this.scrollSpeed = {x: null, y: null}
 
-        this.utils.off(window, 'wheel', this.manualScroll)
+        utils.off(window, 'wheel', this.manualScroll)
 
-        this.utils.off(document, 'selectstart', this.preventDefault(e))
+        utils.off(document, 'selectstart', this.preventDefault(e))
 
-        this.utils.css(
+        utils.css(
             this.areaElement,
             'display',
             'none'
@@ -378,11 +422,11 @@ export class Selection {
     }
     private updatedTouchingElements(){
         const touched = [], 
-            changed = {added: [], removed: []},
+            changed: ChangedElements = {added: [], removed: []},
             mode = this.options.mode,
             selectables = this.selectables,
             areaRect = this.areaElement.getBoundingClientRect(),
-            intersects = this.utils.intersects
+            intersects = utils.intersects
 
             for(let selectable of selectables){
 
@@ -406,7 +450,7 @@ export class Selection {
             this.touchedElements = touched
             this.changedElements = changed
     }
-    private dispatchFilterEvent(eventName: string, element: Element): boolean {
+    private dispatchFilterEvent(eventName: keyof Options, element: Element): boolean {
     
         const event = this.options[eventName]
         if(typeof event === 'function'){
@@ -414,7 +458,7 @@ export class Selection {
             return event.call(this, {selection: this, eventName, element})
         }
     }
-    private dispatchEvent(eventName: string, originalEvent: Event, additional?: Object){
+    private dispatchEvent(eventName: keyof Options, originalEvent: Event, additional?: Object){
         const event = this.options[eventName]
 
         if(typeof event === 'function'){
@@ -422,11 +466,11 @@ export class Selection {
                 this, 
                 {
                     selection: this,
+                    eventName,
                     areaElement: this.areaElement,
+                    originalEvent,
                     selectedElements: this.touchedElements.concat(this.selectedStore),
                     changedElements: this.changedElements,
-                    eventName,
-                    originalEvent,
                     ...additional
                 }
             )
@@ -434,8 +478,8 @@ export class Selection {
     }
 
     public resolveSelectables(): void{
-        this.selectables = this.utils.selectAll(this.options.selectables)
-        const containers = this.utils.selectAll(this.options.containers)
+        this.selectables = utils.selectAll(this.options.selectables)
+        const containers = utils.selectAll(this.options.containers)
         for (let container of containers){
             this.selectables.push(...container.querySelectorAll('*'))
         }
@@ -451,8 +495,8 @@ export class Selection {
         this.selectedStore = []
     }
     public removeFromSelection(element: Element){
-        this.utils.removeElement(this.selectedStore, element)
-        this.utils.removeElement(this.touchedElements, element)
+        utils.removeElement(this.selectedStore, element)
+        utils.removeElement(this.touchedElements, element)
     }
     public get Selection(){
 
@@ -461,7 +505,7 @@ export class Selection {
     public cancel(keepEvent = false){
         this.onTapStop(null, !keepEvent)
     }
-    public option(name: string, value?: any) {
+    public option(name: keyof Options, value?: any) {
         const {options} = this
         return value == null ? options[name] : (options[name] = value)
     }
@@ -475,11 +519,16 @@ export class Selection {
     public enable(){
         this.bindStartEvents('on')
     }
+    public static create(options?: Options){
+        return new Selection(options)
+    }
 
-    public utils: Utils = {...utils}
+    public utils: Utils = utils
     public readonly version: string = '0.2.2'
+
+    
 }
 export function create(options?: Options){
-    return new Selection(options || {})
+    return new Selection(options)
 }
 export default Selection
