@@ -179,12 +179,12 @@ const selection = new Selection({
 Event properties of start, stop and move event.
  * selection`:Selection` _- Current selection object._
  * eventName`:String` _- The event name._
- * areaElement`:HTMLElement` _- The selection element._
+ * areaElement`:Element` _- The selection element._
  * originalEvent`:Event` _- The original mouse-event._
- * selectedElements`:Array<HTMLElement>` _- Array with currently selected HTMLElement._
+ * selectedElements`:Array<Element>` _- Array with currently selected HTMLElement._
  * changedElements`:Object`
- * added`:Array<HTMLElements>` _- Elements which are added to `selectedElements` since the last interaction (mousemove)._
- * removed`:Array<HTMLElements>`  _- Elements which are removed from `selectedElements` since last interaction (mousemove)._
+ * added`:Array<Element>` _- Elements which are added to `selectedElements` since the last interaction (mousemove)._
+ * removed`:Array<Element>`  _- Elements which are removed from `selectedElements` since last interaction (mousemove)._
 
 
 ### Filter event
