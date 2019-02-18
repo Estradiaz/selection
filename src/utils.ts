@@ -1,14 +1,20 @@
-import { Mode, CSSWriteableStyleDeclarationProperties, Subtype } from "./types";
+import { Mode, CSSWriteableStyleDeclarationProperties, Subtype, SelectionEventMap } from "./types";
 
-function eventListener(method: "addEventListener" | "removeEventListener", elements: HTMLCollection | NodeList | Element, events: (keyof GlobalEventHandlersEventMap)[] | keyof GlobalEventHandlersEventMap, fn: EventListener, options: Object = {}) {
+function eventListener(
+    method: "addEventListener" | "removeEventListener", 
+    elements: EventTarget | EventTarget[], 
+    events: (keyof SelectionEventMap)[] | keyof SelectionEventMap, 
+    fn: (e:any) => void,
+    options: Object = {}) {
 
-    let elements_: Iterable<Subtype<Node, Function>>
+    let elements_: Iterable<Subtype<EventTarget, Function>>
     // Normalize array
     if (elements instanceof HTMLCollection || elements instanceof NodeList) {
         elements_ = Array.from(<HTMLCollection | NodeList>elements);
     } else if (!Array.isArray(elements)) {
         elements_ = [elements];
-    }
+    } else 
+        elements_ = elements
 
     if (!Array.isArray(events)) events = [events];
 
@@ -52,7 +58,7 @@ const unitify = (val: string | number, unit = 'px') => typeof val === 'number' ?
  * @param val The value for a single attribute.
  * @returns {*}
  */
-export function css(el: HTMLElement, attr: {[key in CSSWriteableStyleDeclarationProperties]?: string | number } | CSSWriteableStyleDeclarationProperties | null, val: number | string = null) {
+export function css(el: HTMLElement, attr: {[key in CSSWriteableStyleDeclarationProperties]?: string | number } | CSSWriteableStyleDeclarationProperties | null, val?: number | string) {
 
     // what the heck is this function 
 
@@ -62,21 +68,24 @@ export function css(el: HTMLElement, attr: {[key in CSSWriteableStyleDeclaration
     if (typeof attr === 'object') {
 
         for (let prop in attr) {
-            style[<CSSWriteableStyleDeclarationProperties>prop] = unitify(attr[<CSSWriteableStyleDeclarationProperties>prop]);
+            let _prop = <CSSWriteableStyleDeclarationProperties>prop
+            let _val = attr[_prop]
+            if(_prop && _val)
+                style[_prop] = unitify(_val);
         }
         // undefined
     } else if (val == null) {
 
-        let cssStyleDeclaration: CSSStyleDeclaration
+        let cssStyleDeclaration: CSSStyleDeclaration | null
         const dw = document.defaultView;
-        if (dw && dw.getComputedStyle) {
-            cssStyleDeclaration = dw.getComputedStyle(el, null);
-        } 
+        cssStyleDeclaration = dw && dw.getComputedStyle && dw.getComputedStyle(el, null);
+        
+         
         // IE6 - deprecated as outdated and unsecure - no need to support
         // else if (el.currentStyle) {
         //     val = el.currentStyle;
         // }
-
+        if(cssStyleDeclaration)
         return attr == null ? cssStyleDeclaration : cssStyleDeclaration[attr]; // CSSStyleDeclaration | string | number
     } else {
         style[attr] = unitify(val);
@@ -141,9 +150,12 @@ export function eventPath(evt: Event) {
 
     // polyfill
     let el = (<Element>evt.target).parentElement
-    path = [evt.target, el];
-    while (el = el.parentElement) path.push(el);
+    if(el && evt.target){
 
+        path = [evt.target, el];
+        while (el = el.parentElement) path.push(el);
+    }
+    
     path.push(document, window);
     return path;
 }

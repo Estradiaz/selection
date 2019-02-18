@@ -4,7 +4,7 @@
  * @author  Simon Reinisch - TypeScripted: Samuel Ueberle
  * @license MIT
  */
-import {Options, Utils, ChangedElements} from './types'
+import {Options, Utils, ChangedElements, Subtype, DispatchEventMap, Omit} from './types'
 import * as utils from './utils'
 
 
@@ -61,22 +61,25 @@ export class Selection {
     = document.createElement('div')
     private scrollAvailable: boolean 
     = true
-    private scrollSpeed: {x: number, y: number} 
+    private scrollSpeed: {x: number | null, y: number | null} 
     = {x: null, y: null}
-    private selectionAreaContainer: Element = null
+    private selectionAreaContainer: Element | string = 'body'
     private areaStartX: number = 0
     private areaStartY: number = 0
     private areaEndX: number = 0
     private areaEndY: number = 0
     private boundaries: Element[] = []
     private touchedElements: Element[] = []
-    private targetBoundary:  ClientRect | DOMRect
-    private targetContainer: Element
-    private selectables: Element[]
+    private targetBoundary:  ClientRect | DOMRect | null = null
+    private targetContainer: Element | null = null
+    private selectables: Element[] = []
     private singleClick: boolean = false
-    private changedElements: ChangedElements
+    private changedElements: ChangedElements = {
+        added: [],
+        removed: []
+    }
 
-    constructor(options: Options){
+    constructor(options?: Options){
         if(options)
         Object.assign(this.options, options)
         console.log(options, this.options)
@@ -99,7 +102,9 @@ export class Selection {
         if (utils.isElement(this.options.selectionAreaContainer)) {
             this.selectionAreaContainer = <Element>this.options.selectionAreaContainer;
         } else {
-            this.selectionAreaContainer = document.querySelector(<string>this.options.selectionAreaContainer);
+            let sAC = document.querySelector(<string>this.options.selectionAreaContainer);
+            if(!sAC) throw TypeError("null is not assignable")
+            else this.selectionAreaContainer = sAC
         }
 
         this.clippingElement.appendChild(this.areaElement);
@@ -128,7 +133,7 @@ export class Selection {
         this.enable();
     }
 
-    private bindStartEvents(type: keyof Utils){
+    private bindStartEvents(type: 'on' | 'off'){
         utils[type]
         (document, 'mousedown', this.onTapStart)
         if(!this.options.disableTouch){
@@ -136,13 +141,13 @@ export class Selection {
             (document, 'touchstart', this.onTapStart, {passive: false})
         }
     }
-    private onTapStart(e: TouchEvent): undefined{
+    private onTapStart(e: TouchEvent): void{
         console.log(this)
         const {x, y, target} = utils.simplifyEvent(e)
         const targetBondaryClientRect = target.getBoundingClientRect()
 
         if(!this.options.validateStart(e)){
-            return undefined;
+            return ;
         }
 
         const startAreas = utils.selectAll(this.options.startareas)
@@ -164,12 +169,14 @@ export class Selection {
 
         this.resolveSelectables()
 
-        this.targetContainer = this.boundaries.find(
-            el => utils.intersects(
+        let tC = this.boundaries.find(
+            el => !!utils.intersects(
                 el.getBoundingClientRect(),
                 targetBondaryClientRect
             )
         )
+        if(tC === undefined) throw TypeError('targetContainer cannot be undefined')
+        this.targetContainer = tC
 
         this.targetBoundary = this.targetContainer.getBoundingClientRect()
         this.touchedElements = []
@@ -196,7 +203,7 @@ export class Selection {
 
             
             utils.on(window, 'wheel', this.manualScroll)
-            this.selectables = this.selectables.filter(s => this.targetContainer.contains(s))
+            this.selectables = this.selectables.filter(s => this.targetContainer && this.targetContainer.contains(s))
 
             let {top, left, width, height} = this.targetBoundary
             utils.css(
@@ -277,6 +284,9 @@ export class Selection {
         }
     }
     private onTapMove(e: TouchEvent){
+
+        if(!this.targetContainer) return;
+
         let {x , y} = utils.simplifyEvent(e)
         this.areaEndX = x;
         this.areaEndY = y;
@@ -318,6 +328,8 @@ export class Selection {
     }
     private manualScroll(e: WheelEvent){
 
+        if(this.scrollSpeed.x === null) this.scrollSpeed.x = 0
+        if(this.scrollSpeed.y === null) this.scrollSpeed.y = 0
         this.scrollSpeed.x += this.options.scrollSpeedDivider * e.deltaX
         this.scrollSpeed.y += this.options.scrollSpeedDivider * e.deltaY
         this.onTapMove(
@@ -333,6 +345,8 @@ export class Selection {
         e.preventDefault()
     }
     private redrawArea(){
+        if(!this.targetContainer) return;
+        if(!this.targetBoundary) return;
         const {
             scrollHeight,
             scrollWidth,
@@ -382,7 +396,7 @@ export class Selection {
     private preventDefault(e: Event){
         e.preventDefault()
     }
-    private onTapStop(e: TouchEvent, noEvent: boolean){
+    private onTapStop(e: TouchEvent | null, noEvent: boolean = false){
 
         console.log('tabstop', utils)
         utils.off(
@@ -401,10 +415,10 @@ export class Selection {
             this.onTapStop
         )
 
-        if(this.singleClick && this.options.singleClick){
+        if(this.singleClick && this.options.singleClick && e !== null){
             this.onSingleTap(e)
         } else
-        if(!this.singleClick && !noEvent){
+        if(!this.singleClick && !noEvent && e !== null){
             this.updatedTouchingElements()
             this.dispatchEvent('onStop', e)
         }
@@ -412,7 +426,7 @@ export class Selection {
 
         utils.off(window, 'wheel', this.manualScroll)
 
-        utils.off(document, 'selectstart', this.preventDefault(e))
+        utils.off(document, 'selectstart', this.preventDefault)
 
         utils.css(
             this.areaElement,
@@ -450,30 +464,64 @@ export class Selection {
             this.touchedElements = touched
             this.changedElements = changed
     }
-    private dispatchFilterEvent(eventName: keyof Options, element: Element): boolean {
+    private dispatchFilterEvent(eventName: 'selectionFilter',  element: Element): boolean {
     
         const event = this.options[eventName]
         if(typeof event === 'function'){
 
             return event.call(this, {selection: this, eventName, element})
         }
+        return false
     }
-    private dispatchEvent(eventName: keyof Options, originalEvent: Event, additional?: Object){
-        const event = this.options[eventName]
+    
+    private dispatchEvent(eventName: keyof DispatchEventMap, originalEvent: Event, additional?: Object | {target: Element}){
 
-        if(typeof event === 'function'){
-            return event.call(
-                this, 
-                {
-                    selection: this,
-                    eventName,
-                    areaElement: this.areaElement,
-                    originalEvent,
-                    selectedElements: this.touchedElements.concat(this.selectedStore),
-                    changedElements: this.changedElements,
-                    ...additional
-                }
+        
+        if(eventName === 'onSelect' &&
+            !(
+                additional && ('target' in additional)
             )
+        ) {
+
+            throw TypeError(`target missing in "${additional}"`) ;
+        }
+        else {
+            if(eventName === 'onSelect'){
+                const event = this.options[eventName]
+        
+                if(typeof event === 'function' && additional && 'target' in additional){
+                    return event.call(
+                        this, 
+                        {
+                            selection: this,
+                            eventName,
+                            areaElement: this.areaElement,
+                            originalEvent,
+                            selectedElements: this.touchedElements.concat(this.selectedStore),
+                            changedElements: this.changedElements,
+                            ...additional
+                        }
+                    )
+                } else throw Error(`event - options["${eventName}"] is not callable`)
+            } else {
+
+                const event = this.options[eventName]
+        
+                if(typeof event === 'function'){
+                    return event.call(
+                        this, 
+                        {
+                            selection: this,
+                            eventName,
+                            areaElement: this.areaElement,
+                            originalEvent,
+                            selectedElements: this.touchedElements.concat(this.selectedStore),
+                            changedElements: this.changedElements,
+                            ...additional
+                        }
+                    )
+                } else throw Error(`event - options["${eventName}"] is not callable`)
+            }
         }
     }
 
@@ -514,7 +562,9 @@ export class Selection {
     }
     public destroy(){
         this.disable()
+        if(typeof this.selectionAreaContainer !== 'string')
         this.selectionAreaContainer.removeChild(this.clippingElement)
+        else throw TypeError(`this.selecionAreaContainer has to be of type Element but is of type string`)
     }
     public enable(){
         this.bindStartEvents('on')

@@ -1,6 +1,16 @@
 import * as utils from './utils'
 import Selection from './selection';
 
+export interface SelectionEventMap extends DocumentEventMap{
+    'selectstart': Event
+}
+export interface DispatchEventMap{
+
+    'onStart': TriggerEvent
+    'onSelect': SelectEvent
+    'onMove': TriggerEvent
+    'onStop': TriggerEvent
+}
 export type ChangedElements = {
     added: Element[]
     removed: Element[]
@@ -22,17 +32,17 @@ export type FilterEvent = {
     element: Element
 }
 export type Options = {
-    class?: string,
-    mode?: Mode,
-    startThreshold?: number,
-    singleClick?: boolean,
-    disableTouch?: boolean,
-    containers?: string[],
-    selectables?: string[],
-    scrollSpeedDivider?: number,
-    startareas?: string[],
-    boundaries?: string[],
-    selectionAreaContainer?: Element | string
+    class: string,
+    mode: Mode,
+    startThreshold: number,
+    singleClick: boolean,
+    disableTouch: boolean,
+    containers: string[],
+    selectables: string[],
+    scrollSpeedDivider: number,
+    startareas: string[],
+    boundaries: string[],
+    selectionAreaContainer: Element | string
     onStart(e: TriggerEvent): void
     onSelect(e: SelectEvent): void
     onMove(e: TriggerEvent): void
